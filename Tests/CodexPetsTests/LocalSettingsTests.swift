@@ -1,0 +1,62 @@
+import Foundation
+import Testing
+@testable import CodexPets
+
+@MainActor
+@Test
+func menuBarIconVisibilityDefaultsToEnabledAndPersists() throws {
+    let suiteName = "codex-pets-menu-bar-icon-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+
+    #expect(settings.showMenuBarIcon)
+    #expect(settings.menuBarLayout == .default)
+    settings.showMenuBarIcon = false
+    settings.menuBarLayout = MenuBarLayout(
+        visibleItems: [.weekly, .pet],
+        hiddenItems: [.fiveHour]
+    )
+
+    let reloaded = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(!reloaded.showMenuBarIcon)
+    #expect(reloaded.menuBarLayout.visibleItems == [.weekly, .pet])
+    #expect(reloaded.menuBarLayout.hiddenItems == [.fiveHour])
+}
+
+@MainActor
+@Test
+func hidingPetEnablesMenuBarIconAndPersists() throws {
+    let suiteName = "codex-pets-hidden-pet-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    settings.showMenuBarIcon = false
+    settings.setPetVisible(false)
+
+    #expect(!settings.petVisible)
+    #expect(settings.showMenuBarIcon)
+
+    let reloaded = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(!reloaded.petVisible)
+    #expect(reloaded.showMenuBarIcon)
+}
+
+private struct TestLaunchAtLoginManager: LaunchAtLoginManaging {
+    var isEnabled = false
+    func setEnabled(_ enabled: Bool) throws {}
+}

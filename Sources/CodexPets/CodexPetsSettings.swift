@@ -1,0 +1,314 @@
+import AppKit
+import Foundation
+import ServiceManagement
+
+protocol LaunchAtLoginManaging {
+    var isEnabled: Bool { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
+private struct SMAppServiceLaunchAtLoginManager: LaunchAtLoginManaging {
+    var isEnabled: Bool {
+        SMAppService.mainApp.status == .enabled
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            if SMAppService.mainApp.status != .enabled {
+                try SMAppService.mainApp.register()
+            }
+        } else if SMAppService.mainApp.status == .enabled {
+            try SMAppService.mainApp.unregister()
+        }
+    }
+}
+
+struct PetSkin: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let path: String
+}
+
+@MainActor
+final class CodexPetsSettings: ObservableObject {
+    private enum Keys {
+        static let activeRefreshInterval = "activeRefreshInterval"
+        static let idleRefreshInterval = "idleRefreshInterval"
+        static let usageRefreshInterval = "usageRefreshInterval"
+        static let watcherRefreshInterval = "watcherRefreshInterval"
+        static let fileChangeRefreshMinimumGap = "fileChangeRefreshMinimumGap"
+        static let rateLimitSource = "rateLimitSource"
+        static let showPeriodUsage = "showPeriodUsage"
+        static let taskHistoryRange = "taskHistoryRange"
+        static let customPetArtworkPath = "customPetArtworkPath"
+        static let petSkins = "petSkins"
+        static let selectedPetSkinID = "selectedPetSkinID"
+        static let showMenuBarIcon = "showMenuBarIcon"
+        static let menuBarIconPlacement = "menuBarIconPlacement"
+        static let menuBarLayout = "menuBarLayout"
+        static let petVisible = "petVisible"
+    }
+
+    private let defaults: UserDefaults
+    private let launchAtLoginManager: LaunchAtLoginManaging
+    private var isInitializing = true
+
+    @Published var activeRefreshInterval: TimeInterval {
+        didSet { normalizeActiveRefreshInterval() }
+    }
+
+    @Published var idleRefreshInterval: TimeInterval {
+        didSet { normalizeIdleRefreshInterval() }
+    }
+
+    @Published var usageRefreshInterval: TimeInterval {
+        didSet { normalizeUsageRefreshInterval() }
+    }
+
+    @Published var watcherRefreshInterval: TimeInterval {
+        didSet { normalizeWatcherRefreshInterval() }
+    }
+
+    @Published var fileChangeRefreshMinimumGap: TimeInterval {
+        didSet { normalizeFileChangeRefreshMinimumGap() }
+    }
+
+    @Published var rateLimitSource: RateLimitSourcePreference {
+        didSet { defaults.set(rateLimitSource.rawValue, forKey: Keys.rateLimitSource) }
+    }
+
+    @Published var showPeriodUsage: Bool {
+        didSet { defaults.set(showPeriodUsage, forKey: Keys.showPeriodUsage) }
+    }
+
+    @Published var taskHistoryRange: TaskHistoryRange {
+        didSet { defaults.set(taskHistoryRange.rawValue, forKey: Keys.taskHistoryRange) }
+    }
+
+    @Published private(set) var launchAtLoginEnabled: Bool
+    @Published private(set) var launchAtLoginError: String?
+
+    @Published var showMenuBarIcon: Bool {
+        didSet { defaults.set(showMenuBarIcon, forKey: Keys.showMenuBarIcon) }
+    }
+
+    @Published var menuBarLayout: MenuBarLayout {
+        didSet { defaults.set(try? JSONEncoder().encode(menuBarLayout), forKey: Keys.menuBarLayout) }
+    }
+
+    @Published private(set) var petVisible: Bool {
+        didSet { defaults.set(petVisible, forKey: Keys.petVisible) }
+    }
+
+    @Published private(set) var petSkins: [PetSkin]
+    @Published private(set) var selectedPetSkinID: String?
+    @Published private(set) var petArtworkError: String?
+    private var petSkinImages: [String: NSImage]
+
+    init(
+        defaults: UserDefaults = .standard,
+        launchAtLoginManager: LaunchAtLoginManaging = SMAppServiceLaunchAtLoginManager()
+    ) {
+        self.defaults = defaults
+        self.launchAtLoginManager = launchAtLoginManager
+
+        var loadedPetSkins = defaults.data(forKey: Keys.petSkins)
+            .flatMap { try? JSONDecoder().decode([PetSkin].self, from: $0) }
+            ?? []
+        if loadedPetSkins.isEmpty,
+           let legacyPath = defaults.string(forKey: Keys.customPetArtworkPath),
+           NSImage(contentsOfFile: legacyPath) != nil {
+            loadedPetSkins = [PetSkin(id: "legacy-custom", name: "自定义皮肤", path: legacyPath)]
+        }
+        var loadedPetSkinImages: [String: NSImage] = [:]
+        loadedPetSkins = loadedPetSkins.filter { skin in
+            guard let image = NSImage(contentsOfFile: skin.path) else {
+                return false
+            }
+            loadedPetSkinImages[skin.id] = image
+            return true
+        }
+        let storedSelectedPetSkinID = defaults.string(forKey: Keys.selectedPetSkinID)
+            ?? (defaults.string(forKey: Keys.customPetArtworkPath) == nil ? nil : loadedPetSkins.first?.id)
+
+        self.petSkins = loadedPetSkins
+        self.petSkinImages = loadedPetSkinImages
+        self.selectedPetSkinID = loadedPetSkins.contains { $0.id == storedSelectedPetSkinID }
+            ? storedSelectedPetSkinID
+            : nil
+        self.petArtworkError = nil
+        self.activeRefreshInterval = Self.clamped(defaults.object(forKey: Keys.activeRefreshInterval) as? TimeInterval ?? 3, min: 2, max: 30)
+        self.idleRefreshInterval = Self.clamped(defaults.object(forKey: Keys.idleRefreshInterval) as? TimeInterval ?? 6, min: 4, max: 120)
+        self.usageRefreshInterval = Self.clamped(defaults.object(forKey: Keys.usageRefreshInterval) as? TimeInterval ?? 300, min: 120, max: 1_800)
+        self.watcherRefreshInterval = Self.clamped(defaults.object(forKey: Keys.watcherRefreshInterval) as? TimeInterval ?? 12, min: 8, max: 120)
+        self.fileChangeRefreshMinimumGap = Self.clamped(defaults.object(forKey: Keys.fileChangeRefreshMinimumGap) as? TimeInterval ?? 3, min: 1, max: 30)
+        self.rateLimitSource = RateLimitSourcePreference(rawValue: defaults.string(forKey: Keys.rateLimitSource) ?? "") ?? .appServerFirst
+        self.showPeriodUsage = defaults.object(forKey: Keys.showPeriodUsage) as? Bool ?? true
+        self.taskHistoryRange = TaskHistoryRange(rawValue: defaults.string(forKey: Keys.taskHistoryRange) ?? "") ?? .threeDays
+        self.launchAtLoginEnabled = launchAtLoginManager.isEnabled
+        self.showMenuBarIcon = defaults.object(forKey: Keys.showMenuBarIcon) as? Bool ?? true
+        if let data = defaults.data(forKey: Keys.menuBarLayout),
+           let layout = try? JSONDecoder().decode(MenuBarLayout.self, from: data) {
+            self.menuBarLayout = layout
+        } else {
+            switch defaults.string(forKey: Keys.menuBarIconPlacement) {
+            case "betweenQuotas":
+                self.menuBarLayout = MenuBarLayout(visibleItems: [.fiveHour, .pet, .weekly], hiddenItems: [])
+            case "trailing":
+                self.menuBarLayout = MenuBarLayout(visibleItems: [.fiveHour, .weekly, .pet], hiddenItems: [])
+            default:
+                self.menuBarLayout = .default
+            }
+        }
+        self.petVisible = defaults.object(forKey: Keys.petVisible) as? Bool ?? true
+        if !petVisible {
+            showMenuBarIcon = true
+        }
+        self.isInitializing = false
+    }
+
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        do {
+            try launchAtLoginManager.setEnabled(enabled)
+            launchAtLoginError = nil
+        } catch {
+            launchAtLoginError = error.localizedDescription
+        }
+        launchAtLoginEnabled = launchAtLoginManager.isEnabled
+    }
+
+    func setPetVisible(_ visible: Bool) {
+        if !visible {
+            showMenuBarIcon = true
+        }
+        petVisible = visible
+    }
+
+    var selectedPetSkinImage: NSImage? {
+        selectedPetSkinID.flatMap { petSkinImages[$0] }
+    }
+
+    func image(for skin: PetSkin) -> NSImage? {
+        petSkinImages[skin.id]
+    }
+
+    @discardableResult
+    func importPetSkin(data: Data, name: String) -> String? {
+        guard let image = NSImage(data: data) else {
+            petArtworkError = "所选文件不是可用的图片。"
+            return nil
+        }
+        do {
+            let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+                ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+            let directory = root
+                .appendingPathComponent("codex-pets", isDirectory: true)
+                .appendingPathComponent("PetSkins", isDirectory: true)
+            let id = UUID().uuidString
+            let destination = directory.appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: destination, options: .atomic)
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let skin = PetSkin(
+                id: id,
+                name: trimmedName.isEmpty ? "自定义皮肤" : trimmedName,
+                path: destination.path
+            )
+            petSkinImages[id] = image
+            petSkins.append(skin)
+            persistPetSkins()
+            petArtworkError = nil
+            return id
+        } catch {
+            petArtworkError = "宠物图片保存失败：\(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    @discardableResult
+    func deletePetSkin(id: String) -> Bool {
+        guard let skin = petSkins.first(where: { $0.id == id }) else {
+            return true
+        }
+        do {
+            try FileManager.default.removeItem(atPath: skin.path)
+            petSkinImages.removeValue(forKey: id)
+            petSkins.removeAll { $0.id == id }
+            if selectedPetSkinID == id {
+                selectPetSkin(nil)
+            }
+            persistPetSkins()
+            petArtworkError = nil
+            return true
+        } catch {
+            petArtworkError = "皮肤删除失败：\(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func selectPetSkin(_ id: String?) {
+        selectedPetSkinID = id.flatMap { candidate in
+            petSkins.contains { $0.id == candidate } ? candidate : nil
+        }
+        if let selectedPetSkinID {
+            defaults.set(selectedPetSkinID, forKey: Keys.selectedPetSkinID)
+        } else {
+            defaults.removeObject(forKey: Keys.selectedPetSkinID)
+        }
+    }
+
+    func resetRefreshDefaults() {
+        activeRefreshInterval = 3
+        idleRefreshInterval = 6
+        usageRefreshInterval = 300
+        watcherRefreshInterval = 12
+        fileChangeRefreshMinimumGap = 3
+    }
+
+    private func persistPetSkins() {
+        if let data = try? JSONEncoder().encode(petSkins) {
+            defaults.set(data, forKey: Keys.petSkins)
+        }
+        defaults.removeObject(forKey: Keys.customPetArtworkPath)
+    }
+
+    private func normalizeActiveRefreshInterval() {
+        normalize(&activeRefreshInterval, key: Keys.activeRefreshInterval, min: 2, max: 30)
+    }
+
+    private func normalizeIdleRefreshInterval() {
+        normalize(&idleRefreshInterval, key: Keys.idleRefreshInterval, min: 4, max: 120)
+    }
+
+    private func normalizeUsageRefreshInterval() {
+        normalize(&usageRefreshInterval, key: Keys.usageRefreshInterval, min: 120, max: 1_800)
+    }
+
+    private func normalizeWatcherRefreshInterval() {
+        normalize(&watcherRefreshInterval, key: Keys.watcherRefreshInterval, min: 8, max: 120)
+    }
+
+    private func normalizeFileChangeRefreshMinimumGap() {
+        normalize(&fileChangeRefreshMinimumGap, key: Keys.fileChangeRefreshMinimumGap, min: 1, max: 30)
+    }
+
+    private func normalize(
+        _ value: inout TimeInterval,
+        key: String,
+        min: TimeInterval,
+        max: TimeInterval
+    ) {
+        let normalized = Self.clamped(value.rounded(), min: min, max: max)
+        if value != normalized {
+            value = normalized
+            return
+        }
+        if !isInitializing {
+            defaults.set(normalized, forKey: key)
+        }
+    }
+
+    private static func clamped(_ value: TimeInterval, min: TimeInterval, max: TimeInterval) -> TimeInterval {
+        Swift.min(max, Swift.max(min, value))
+    }
+}
