@@ -263,7 +263,7 @@ final class PetOverlayController {
 
         detailWindow.backgroundColor = .clear
         detailWindow.isOpaque = false
-        detailWindow.hasShadow = false
+        detailWindow.hasShadow = true
         detailWindow.level = .statusBar
         detailWindow.ignoresMouseEvents = false
         detailWindow.isMovableByWindowBackground = false

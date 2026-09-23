@@ -18,16 +18,16 @@ enum PetMetrics {
 }
 
 enum DetailPanelMetrics {
-    static let sideSectionWidth: CGFloat = 72
-    static let contentWidth: CGFloat = 224
+    static let sideSectionWidth: CGFloat = 52
+    static let contentWidth: CGFloat = 244
     static let collapsedHeight: CGFloat = 38
     static let detailHeaderHeight: CGFloat = 22
-    static let detailTopPadding: CGFloat = 44
-    static let detailBottomPadding: CGFloat = 18
+    static let detailTopPadding: CGFloat = 54
+    static let detailBottomPadding: CGFloat = 14
     static let detailOverlap: CGFloat = 18
     static let quotaResetTopMargin: CGFloat = 7
     static let quotaResetTextHeight: CGFloat = 20
-    static let quotaResetHeaderGap: CGFloat = 9
+    static let quotaResetHeaderGap: CGFloat = 8
     static let minimumDetailHeight: CGFloat = 250
     static let visibleTaskRows = 4
 
@@ -70,8 +70,8 @@ enum DetailPanelMetrics {
         topPadding: CGFloat = detailTopPadding
     ) -> CGFloat {
         let rows = max(1, min(visibleTaskRows, taskRows))
-        let taskStackHeight = CGFloat(rows) * 48 + CGFloat(max(0, rows - 1)) * 7
-        let periodHeight: CGFloat = showsPeriodUsage ? 10 + 47 : 0
+        let taskStackHeight = CGFloat(rows) * 46 + CGFloat(max(0, rows - 1)) * 6
+        let periodHeight: CGFloat = showsPeriodUsage ? 8 + 41 : 0
         let contentHeight = topPadding
             + detailHeaderHeight
             + 10

@@ -6,6 +6,10 @@ APP_NAME="codex-pet"
 PACKAGE_NAME="codex-pets"
 APP_VERSION="0.0.1"
 BUNDLE_ID="com.alight.codexpets"
+APP_ONLY=0
+if [[ "${1:-}" == "--app-only" ]]; then
+  APP_ONLY=1
+fi
 DIST_DIR="$ROOT_DIR/dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 DMG_STAGE_DIR="$DIST_DIR/dmg-stage"
@@ -18,8 +22,10 @@ fi
 swift "$ROOT_DIR/scripts/generate-app-icon.swift"
 swift "$ROOT_DIR/scripts/generate-menu-bar-icon.swift"
 mkdir -p "$DIST_DIR"
-find "$DIST_DIR" -maxdepth 1 -type f \( -name "$APP_NAME.dmg" -o -name "$APP_NAME-*.dmg" -o -name "$PACKAGE_NAME-*.dmg" \) -delete
-rm -rf "$DMG_STAGE_DIR" "$PACKAGE_STAGE_DIR"
+if [[ "$APP_ONLY" == "0" ]]; then
+  find "$DIST_DIR" -maxdepth 1 -type f \( -name "$APP_NAME.dmg" -o -name "$APP_NAME-*.dmg" -o -name "$PACKAGE_NAME-*.dmg" \) -delete
+  rm -rf "$DMG_STAGE_DIR" "$PACKAGE_STAGE_DIR"
+fi
 
 create_app_bundle() {
   local binary_path="$1"
@@ -87,6 +93,17 @@ build_arch() {
   hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGE_DIR" -ov -format UDZO "$dmg_path"
   echo "Built $dmg_path"
 }
+
+if [[ "$APP_ONLY" == "1" ]]; then
+  case "$(uname -m)" in
+    x86_64) swift_arch="x86_64" ;;
+    *) swift_arch="arm64" ;;
+  esac
+  swift build -c release --arch "$swift_arch"
+  create_app_bundle "$ROOT_DIR/.build/$swift_arch-apple-macosx/release/CodexPets" "$APP_DIR"
+  echo "Built $APP_DIR"
+  exit 0
+fi
 
 build_arch "arm64" "arm64"
 build_arch "x86_64" "amd64"
