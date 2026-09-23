@@ -406,7 +406,11 @@ struct SettingsView: View {
         Section("关于 codex-pet") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
-                    Image(systemName: "pawprint.circle.fill").font(.system(size: 42)).foregroundStyle(.tint)
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
                         Text("codex-pet").font(.system(size: 18, weight: .bold))
                         Text("Mac 桌面上的本机 Codex 监测宠物").foregroundStyle(.secondary)
