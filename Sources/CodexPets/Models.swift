@@ -1,7 +1,5 @@
 import Foundation
 
-typealias LayoutPointAdjustment = Double
-
 enum SettingsShortcutFilter {
     static func shouldSuppressTextInputKey(
         characters: String?,

@@ -273,38 +273,53 @@ final class CodexPetsSettings: ObservableObject {
     }
 
     private func normalizeActiveRefreshInterval() {
-        normalize(&activeRefreshInterval, key: Keys.activeRefreshInterval, min: 2, max: 30)
+        let normalized = Self.clamped(activeRefreshInterval.rounded(), min: 2, max: 30)
+        guard activeRefreshInterval == normalized else {
+            activeRefreshInterval = normalized
+            return
+        }
+        persistRefreshInterval(normalized, key: Keys.activeRefreshInterval)
     }
 
     private func normalizeIdleRefreshInterval() {
-        normalize(&idleRefreshInterval, key: Keys.idleRefreshInterval, min: 4, max: 120)
+        let normalized = Self.clamped(idleRefreshInterval.rounded(), min: 4, max: 120)
+        guard idleRefreshInterval == normalized else {
+            idleRefreshInterval = normalized
+            return
+        }
+        persistRefreshInterval(normalized, key: Keys.idleRefreshInterval)
     }
 
     private func normalizeUsageRefreshInterval() {
-        normalize(&usageRefreshInterval, key: Keys.usageRefreshInterval, min: 120, max: 1_800)
+        let normalized = Self.clamped(usageRefreshInterval.rounded(), min: 120, max: 1_800)
+        guard usageRefreshInterval == normalized else {
+            usageRefreshInterval = normalized
+            return
+        }
+        persistRefreshInterval(normalized, key: Keys.usageRefreshInterval)
     }
 
     private func normalizeWatcherRefreshInterval() {
-        normalize(&watcherRefreshInterval, key: Keys.watcherRefreshInterval, min: 8, max: 120)
+        let normalized = Self.clamped(watcherRefreshInterval.rounded(), min: 8, max: 120)
+        guard watcherRefreshInterval == normalized else {
+            watcherRefreshInterval = normalized
+            return
+        }
+        persistRefreshInterval(normalized, key: Keys.watcherRefreshInterval)
     }
 
     private func normalizeFileChangeRefreshMinimumGap() {
-        normalize(&fileChangeRefreshMinimumGap, key: Keys.fileChangeRefreshMinimumGap, min: 1, max: 30)
-    }
-
-    private func normalize(
-        _ value: inout TimeInterval,
-        key: String,
-        min: TimeInterval,
-        max: TimeInterval
-    ) {
-        let normalized = Self.clamped(value.rounded(), min: min, max: max)
-        if value != normalized {
-            value = normalized
+        let normalized = Self.clamped(fileChangeRefreshMinimumGap.rounded(), min: 1, max: 30)
+        guard fileChangeRefreshMinimumGap == normalized else {
+            fileChangeRefreshMinimumGap = normalized
             return
         }
+        persistRefreshInterval(normalized, key: Keys.fileChangeRefreshMinimumGap)
+    }
+
+    private func persistRefreshInterval(_ value: TimeInterval, key: String) {
         if !isInitializing {
-            defaults.set(normalized, forKey: key)
+            defaults.set(value, forKey: key)
         }
     }
 

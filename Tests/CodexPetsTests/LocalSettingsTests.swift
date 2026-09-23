@@ -56,6 +56,34 @@ func hidingPetEnablesMenuBarIconAndPersists() throws {
     #expect(reloaded.showMenuBarIcon)
 }
 
+@MainActor
+@Test
+func refreshIntervalsAreNormalizedAndPersisted() throws {
+    let suiteName = "codex-pets-refresh-intervals-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    settings.activeRefreshInterval = 1.4
+    settings.idleRefreshInterval = 121
+    settings.usageRefreshInterval = 333.4
+    settings.watcherRefreshInterval = 7
+    settings.fileChangeRefreshMinimumGap = 30.7
+
+    let reloaded = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(reloaded.activeRefreshInterval == 2)
+    #expect(reloaded.idleRefreshInterval == 120)
+    #expect(reloaded.usageRefreshInterval == 333)
+    #expect(reloaded.watcherRefreshInterval == 8)
+    #expect(reloaded.fileChangeRefreshMinimumGap == 30)
+}
+
 private struct TestLaunchAtLoginManager: LaunchAtLoginManaging {
     var isEnabled = false
     func setEnabled(_ enabled: Bool) throws {}
