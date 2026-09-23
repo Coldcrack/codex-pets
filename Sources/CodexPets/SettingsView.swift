@@ -41,6 +41,7 @@ private enum RefreshPreset: String, CaseIterable, Identifiable {
 
 private enum SettingsTab: String, CaseIterable, Identifiable {
     case codex
+    case resetSentinel
     case launch
     case about
 
@@ -49,6 +50,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .codex: "Codex"
+        case .resetSentinel: "codex重置哨兵"
         case .launch: "启动与外观"
         case .about: "关于"
         }
@@ -57,6 +59,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .codex: "circle.grid.2x2.fill"
+        case .resetSentinel: "dot.radiowaves.left.and.right"
         case .launch: "gearshape.fill"
         case .about: "info.circle.fill"
         }
@@ -220,17 +223,22 @@ struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .codex
     @State private var petArtworkSelectionError: String?
     @State private var petSkinDeleteCandidate: PetSkin?
+    @StateObject private var resetSentinelStore = ResetSentinelStore()
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
             Divider()
             VStack(alignment: .leading, spacing: 16) {
-                Text("codex-pet 设置")
+                Text(selectedTab == .resetSentinel ? "codex重置哨兵" : "codex-pet 设置")
                     .font(.system(size: 18, weight: .bold))
-                Form { tabContent }
-                    .formStyle(.grouped)
-                footer
+                if selectedTab == .resetSentinel {
+                    ResetSentinelView(store: resetSentinelStore)
+                } else {
+                    Form { tabContent }
+                        .formStyle(.grouped)
+                    footer
+                }
             }
             .padding(20)
             .frame(width: 710)
@@ -306,6 +314,7 @@ struct SettingsView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .codex: codexSettingsContent
+        case .resetSentinel: EmptyView()
         case .launch: launchAndAppearanceContent
         case .about: aboutContent
         }
