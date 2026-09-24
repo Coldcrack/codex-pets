@@ -89,7 +89,7 @@ struct ResetCreditsIndicator: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(foregroundColor)
                     .help("查看重置次数到期时间")
                     .accessibilityLabel("查看重置次数到期时间")
                     .accessibilityHint("显示每次可用重置次数的到期时间")

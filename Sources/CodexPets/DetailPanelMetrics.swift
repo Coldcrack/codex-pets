@@ -27,6 +27,7 @@ enum DetailPanelMetrics {
     static let detailOverlap: CGFloat = 18
     static let quotaResetTopMargin: CGFloat = 7
     static let quotaResetTextHeight: CGFloat = 20
+    static let quotaResetStripHeight: CGFloat = 52
     static let quotaResetHeaderGap: CGFloat = 8
     static let minimumDetailHeight: CGFloat = 250
     static let visibleTaskRows = 4
@@ -60,7 +61,7 @@ enum DetailPanelMetrics {
     ) -> CGFloat {
         max(
             detailTopPadding,
-            quotaResetTopPadding(safeAreaTop: safeAreaTop, collapsedHeight: collapsedHeight) + quotaResetTextHeight + quotaResetHeaderGap
+            quotaResetTopPadding(safeAreaTop: safeAreaTop, collapsedHeight: collapsedHeight) + quotaResetStripHeight + quotaResetHeaderGap
         )
     }
 

@@ -72,6 +72,7 @@ final class UsageViewModel: ObservableObject {
                 let snapshotLoadSucceeded = nextSnapshot.errorMessage == nil
                 let previousTasks = self.snapshot.tasks
                 var mergedSnapshot = self.stabilizedSnapshot(nextSnapshot)
+                mergedSnapshot.usageToday = self.snapshot.usageToday
                 mergedSnapshot.usage24h = self.snapshot.usage24h
                 mergedSnapshot.usage7d = self.snapshot.usage7d
                 mergedSnapshot.usage30d = self.snapshot.usage30d
@@ -176,6 +177,7 @@ final class UsageViewModel: ObservableObject {
                     completedAt: completedAt
                 )
                 if let usage {
+                    self.snapshot.usageToday = usage.today
                     self.snapshot.usage24h = usage.day
                     self.snapshot.usage7d = usage.week
                     self.snapshot.usage30d = usage.month
@@ -481,6 +483,7 @@ final class UsageViewModel: ObservableObject {
 
     private var currentUsage: PeriodUsage {
         PeriodUsage(
+            today: snapshot.usageToday,
             day: snapshot.usage24h,
             week: snapshot.usage7d,
             month: snapshot.usage30d
@@ -498,10 +501,12 @@ final class UsageViewModel: ObservableObject {
         snapshot = snapshot.stabilizedRateLimits(against: previous)
 
         if snapshot.errorMessage != nil,
+           snapshot.usageToday == 0,
            snapshot.usage24h == 0,
            snapshot.usage7d == 0,
            snapshot.usage30d == 0,
            previous.usage30d > 0 {
+            snapshot.usageToday = previous.usageToday
             snapshot.usage24h = previous.usage24h
             snapshot.usage7d = previous.usage7d
             snapshot.usage30d = previous.usage30d
@@ -536,6 +541,7 @@ private struct LocalUsageSettingsSnapshot: Equatable {
     let watcherRefreshInterval: TimeInterval
     let fileChangeRefreshMinimumGap: TimeInterval
     let rateLimitSource: RateLimitSourcePreference
+    let showPeriodUsage: Bool
     let taskHistoryRange: TaskHistoryRange
 
     @MainActor
@@ -546,6 +552,7 @@ private struct LocalUsageSettingsSnapshot: Equatable {
         watcherRefreshInterval = settings.watcherRefreshInterval
         fileChangeRefreshMinimumGap = settings.fileChangeRefreshMinimumGap
         rateLimitSource = settings.rateLimitSource
+        showPeriodUsage = settings.showPeriodUsage
         taskHistoryRange = settings.taskHistoryRange
     }
 }

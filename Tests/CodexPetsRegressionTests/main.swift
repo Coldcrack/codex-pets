@@ -637,6 +637,7 @@ let formatterLater = fixedCalendar.date(from: DateComponents(year: 2030, month: 
 runner.check(Formatters.quotaResetTime(nil, now: formatterNow, calendar: fixedCalendar) == "--", "nil reset time should render as placeholder")
 runner.check(Formatters.quotaResetTime(formatterTomorrow, now: formatterNow, calendar: fixedCalendar) == "明天 01:30", "reset formatter should calculate tomorrow relative to the supplied now")
 runner.check(Formatters.quotaResetTime(formatterLater, now: formatterNow, calendar: fixedCalendar) == "1月3日", "reset formatter should show date for later reset times")
+runner.check(Formatters.quotaResetTime(formatterLater, includeDate: true, now: formatterNow, calendar: fixedCalendar) == "1月3日 09:00", "weekly reset formatter should show month, day, hour, and minute")
 runner.check(
     DetailPanelMetrics.detailCoveredTopHeight(safeAreaTop: 38) == 18,
     "detail panel should account for the covered screen-safe area"

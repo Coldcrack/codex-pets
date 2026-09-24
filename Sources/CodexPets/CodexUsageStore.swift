@@ -179,6 +179,7 @@ final class CodexUsageStore: @unchecked Sendable {
                 secondaryResetsAt: rateLimits.secondaryDisplayResetDate(now: now),
                 rateLimitWindows: rateLimits.displayWindows(now: now),
                 resetCredits: rateLimits.resetCredits,
+                usageToday: usage.today,
                 usage24h: usage.day,
                 usage7d: usage.week,
                 usage30d: usage.month,
@@ -279,6 +280,7 @@ final class CodexUsageStore: @unchecked Sendable {
             secondaryResetsAt: cache.rateLimits.secondaryDisplayResetDate(now: now),
             rateLimitWindows: cache.rateLimits.displayWindows(now: now),
             resetCredits: cache.rateLimits.resetCredits,
+            usageToday: usage.today,
             usage24h: usage.day,
             usage7d: usage.week,
             usage30d: usage.month,
@@ -317,7 +319,7 @@ final class CodexUsageStore: @unchecked Sendable {
     }
 
     private func loadRecentThreads(range: TaskHistoryRange = .threeDays, now: Date = Date()) throws -> [ThreadRecord] {
-        let since = Int(now.timeIntervalSince1970) - range.seconds
+        let since = range.startEpoch(now: now)
         let query = """
         select
           id,
@@ -429,7 +431,7 @@ final class CodexUsageStore: @unchecked Sendable {
         now: Date,
         knownTokens: [String: Int]
     ) -> [RecentSessionCandidate] {
-        let since = Int(now.timeIntervalSince1970) - range.seconds
+        let since = range.startEpoch(now: now)
         let paths = recentTaskSessionPaths(limit: max(range.queryLimit * 3, 80))
         let pathSessionIDs = paths.compactMap { sessionID(from: $0)?.lowercased() }
         var resolvedKnownTokens = knownTokens
@@ -874,6 +876,7 @@ final class CodexUsageStore: @unchecked Sendable {
 
     private func maxPeriodUsage(_ lhs: PeriodUsage, _ rhs: PeriodUsage) -> PeriodUsage {
         PeriodUsage(
+            today: max(lhs.today, rhs.today),
             day: max(lhs.day, rhs.day),
             week: max(lhs.week, rhs.week),
             month: max(lhs.month, rhs.month)
@@ -887,6 +890,7 @@ final class CodexUsageStore: @unchecked Sendable {
 
         guard let cache,
               cache.signature == signature,
+              Calendar.current.isDate(cache.createdAt, inSameDayAs: now),
               now.timeIntervalSince(cache.createdAt) < UsageScanPolicy.periodUsageCacheTTL else {
             return nil
         }
@@ -913,8 +917,10 @@ final class CodexUsageStore: @unchecked Sendable {
 
         let records = try Shell.sqliteJSON(database: logsDatabase, query: query, as: [UsageLogRecord].self)
         let dayStart = Int(now.timeIntervalSince1970) - (24 * 60 * 60)
+        let todayStart = Int(Calendar.current.startOfDay(for: now).timeIntervalSince1970)
         let weekStart = Int(now.timeIntervalSince1970) - (7 * 24 * 60 * 60)
 
+        var today = 0
         var day = 0
         var week = 0
         var month = 0
@@ -924,6 +930,9 @@ final class CodexUsageStore: @unchecked Sendable {
                 continue
             }
             month += tokens
+            if record.ts >= todayStart {
+                today += tokens
+            }
             if record.ts >= weekStart {
                 week += tokens
             }
@@ -932,14 +941,16 @@ final class CodexUsageStore: @unchecked Sendable {
             }
         }
 
-        return PeriodUsage(day: day, week: week, month: month)
+        return PeriodUsage(today: today, day: day, week: week, month: month)
     }
 
     private func loadPeriodUsageFromRollouts(now: Date, threads: [ThreadRecord]) -> PeriodUsage {
         let dayStart = now.addingTimeInterval(-24 * 60 * 60)
+        let todayStart = Calendar.current.startOfDay(for: now)
         let weekStart = now.addingTimeInterval(-7 * 24 * 60 * 60)
         let monthStart = now.addingTimeInterval(-30 * 24 * 60 * 60)
 
+        var today = 0
         var day = 0
         var week = 0
         var month = 0
@@ -950,6 +961,9 @@ final class CodexUsageStore: @unchecked Sendable {
             }
 
             month += tokens
+            if date >= todayStart {
+                today += tokens
+            }
             if date >= weekStart {
                 week += tokens
             }
@@ -976,6 +990,7 @@ final class CodexUsageStore: @unchecked Sendable {
 
         if let mainUsage = loadPeriodUsageWithRipgrep(now: now, paths: mainPaths) {
             day = mainUsage.day
+            today = mainUsage.today
             week = mainUsage.week
             month = mainUsage.month
 
@@ -985,7 +1000,7 @@ final class CodexUsageStore: @unchecked Sendable {
                     date: Date(timeIntervalSince1970: TimeInterval(thread.updatedAt))
                 )
             }
-            return PeriodUsage(day: day, week: week, month: month)
+            return PeriodUsage(today: today, day: day, week: week, month: month)
         }
 
         for thread in recordsByPath.values {
@@ -998,7 +1013,7 @@ final class CodexUsageStore: @unchecked Sendable {
             }
         }
 
-        return PeriodUsage(day: day, week: week, month: month)
+        return PeriodUsage(today: today, day: day, week: week, month: month)
     }
 
     private func loadPeriodUsageWithRipgrep(now: Date, paths: [String]) -> PeriodUsage? {
@@ -1012,12 +1027,15 @@ final class CodexUsageStore: @unchecked Sendable {
         }
 
         let dayStart = now.addingTimeInterval(-24 * 60 * 60)
+        let todayStart = Calendar.current.startOfDay(for: now)
         let weekStart = now.addingTimeInterval(-7 * 24 * 60 * 60)
         let monthStart = now.addingTimeInterval(-30 * 24 * 60 * 60)
         let dayCutoff = timestampSecondPrefix(for: dayStart)
+        let todayCutoff = timestampSecondPrefix(for: todayStart)
         let weekCutoff = timestampSecondPrefix(for: weekStart)
         let monthCutoff = timestampSecondPrefix(for: monthStart)
 
+        var today = 0
         var day = 0
         var week = 0
         var month = 0
@@ -1035,6 +1053,9 @@ final class CodexUsageStore: @unchecked Sendable {
                 }
 
                 month += event.tokens
+                if timestampPrefix >= todayCutoff {
+                    today += event.tokens
+                }
                 if timestampPrefix >= weekCutoff {
                     week += event.tokens
                 }
@@ -1050,6 +1071,9 @@ final class CodexUsageStore: @unchecked Sendable {
             }
 
             month += event.tokens
+            if event.date >= todayStart {
+                today += event.tokens
+            }
             if event.date >= weekStart {
                 week += event.tokens
             }
@@ -1058,7 +1082,7 @@ final class CodexUsageStore: @unchecked Sendable {
             }
         }
 
-        return PeriodUsage(day: day, week: week, month: month)
+        return PeriodUsage(today: today, day: day, week: week, month: month)
     }
 
     private func runRipgrepTokenSearch(executable: String, paths: [String]) -> String? {

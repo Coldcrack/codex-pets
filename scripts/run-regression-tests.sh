@@ -20,6 +20,7 @@ swiftc \
   "${ROOT_DIR}/Sources/CodexPets/DetailPanelMetrics.swift" \
   "${ROOT_DIR}/Sources/CodexPets/ScreenSafeAreaGeometry.swift" \
   "${ROOT_DIR}/Sources/CodexPets/AppInfo.swift" \
+  "${ROOT_DIR}/Sources/CodexPets/DownsampledImage.swift" \
   "${ROOT_DIR}/Sources/CodexPets/Formatters.swift" \
   "${ROOT_DIR}/Sources/CodexPets/RateLimitResetCredits.swift" \
   "${ROOT_DIR}/Sources/CodexPets/ResetCreditsIndicator.swift" \

@@ -22,7 +22,12 @@ enum Formatters {
         return "\(value)%"
     }
 
-    static func quotaResetTime(_ date: Date?, now: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> String {
+    static func quotaResetTime(
+        _ date: Date?,
+        includeDate: Bool = false,
+        now: Date = Date(),
+        calendar: Calendar = .autoupdatingCurrent
+    ) -> String {
         guard let date else {
             return "--"
         }
@@ -31,7 +36,9 @@ enum Formatters {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
-        if calendar.isDate(date, inSameDayAs: now) {
+        if includeDate {
+            formatter.dateFormat = "M月d日 HH:mm"
+        } else if calendar.isDate(date, inSameDayAs: now) {
             formatter.dateFormat = "HH:mm"
         } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
                   calendar.isDate(date, inSameDayAs: tomorrow) {

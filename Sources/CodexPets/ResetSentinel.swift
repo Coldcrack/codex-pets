@@ -129,7 +129,7 @@ final class ResetSentinelStore: ObservableObject {
                 throw URLError(.badServerResponse)
             }
             let remote = try JSONDecoder().decode(RemoteResponse.self, from: data).events
-            let mapped = try validatedEvents(remote)
+            let mapped = try localizedEvents(remote)
             guard !mapped.isEmpty else { throw ResetSentinelError.emptyFeed }
             events = mapped
             lastSuccessfulRefreshAt = Date()
@@ -139,10 +139,10 @@ final class ResetSentinelStore: ObservableObject {
         }
     }
 
-    private func validatedEvents(_ remote: [RemoteEvent]) throws -> [ResetSentinelEvent] {
+    func localizedEvents(_ remote: [RemoteEvent]) throws -> [ResetSentinelEvent] {
         var seen: Set<String> = []
         let now = Date().addingTimeInterval(300)
-        let mapped = try remote.map { item -> ResetSentinelEvent in
+        let validated = try remote.map { item in
             guard seen.insert(item.tweetID).inserted,
                   !item.tweetID.isEmpty,
                   let date = ResetSentinelSeed.parseDate(item.announcedAt),
@@ -153,16 +153,27 @@ final class ResetSentinelStore: ObservableObject {
                   url.path.hasPrefix("/thsottiaux/status/") else {
                 throw ResetSentinelError.invalidFeed
             }
-            return ResetSentinelEvent(
-                id: item.tweetID,
-                kind: item.resetType,
-                title: item.text.isEmpty ? item.resetType.label : item.text,
-                summary: item.text,
-                announcedAt: date,
-                sourceURL: url
-            )
+            return (item: item, date: date, url: url)
         }
-        return mapped.sorted { $0.announcedAt < $1.announcedAt }
+        let localizedByTweetID = Dictionary(uniqueKeysWithValues: ResetSentinelSeed.events.map {
+            ($0.sourceURL.lastPathComponent, $0)
+        })
+        return validated
+            .sorted { $0.date < $1.date }
+            .enumerated()
+            .map { offset, entry in
+                if let localized = localizedByTweetID[entry.item.tweetID] {
+                    return localized
+                }
+                return ResetSentinelEvent(
+                    id: entry.item.tweetID,
+                    kind: entry.item.resetType,
+                    title: "第 \(offset + 1) 次重置（\(entry.item.resetType == .banked ? "重置卡" : "常规")）",
+                    summary: entry.item.text,
+                    announcedAt: entry.date,
+                    sourceURL: entry.url
+                )
+            }
     }
 }
 
@@ -170,7 +181,7 @@ private struct RemoteResponse: Decodable {
     let events: [RemoteEvent]
 }
 
-private struct RemoteEvent: Decodable {
+struct RemoteEvent: Decodable {
     let tweetID: String
     let tweetURL: String
     let text: String

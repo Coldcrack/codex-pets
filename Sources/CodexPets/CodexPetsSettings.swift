@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import ServiceManagement
+import SwiftUI
 
 protocol LaunchAtLoginManaging {
     var isEnabled: Bool { get }
@@ -29,6 +30,27 @@ struct PetSkin: Codable, Equatable, Identifiable {
     let path: String
 }
 
+enum AppearanceTheme: String, CaseIterable, Identifiable {
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .light: "浅色"
+        case .dark: "深色"
+        }
+    }
+
+    var colorScheme: ColorScheme {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
 @MainActor
 final class CodexPetsSettings: ObservableObject {
     private enum Keys {
@@ -39,6 +61,8 @@ final class CodexPetsSettings: ObservableObject {
         static let fileChangeRefreshMinimumGap = "fileChangeRefreshMinimumGap"
         static let rateLimitSource = "rateLimitSource"
         static let showPeriodUsage = "showPeriodUsage"
+        static let usagePeriodLayout = "usagePeriodLayout"
+        static let appearanceTheme = "appearanceTheme"
         static let taskHistoryRange = "taskHistoryRange"
         static let customPetArtworkPath = "customPetArtworkPath"
         static let petSkins = "petSkins"
@@ -81,6 +105,14 @@ final class CodexPetsSettings: ObservableObject {
         didSet { defaults.set(showPeriodUsage, forKey: Keys.showPeriodUsage) }
     }
 
+    @Published var usagePeriodLayout: UsagePeriodLayout {
+        didSet { defaults.set(try? JSONEncoder().encode(usagePeriodLayout), forKey: Keys.usagePeriodLayout) }
+    }
+
+    @Published var appearanceTheme: AppearanceTheme {
+        didSet { defaults.set(appearanceTheme.rawValue, forKey: Keys.appearanceTheme) }
+    }
+
     @Published var taskHistoryRange: TaskHistoryRange {
         didSet { defaults.set(taskHistoryRange.rawValue, forKey: Keys.taskHistoryRange) }
     }
@@ -117,22 +149,17 @@ final class CodexPetsSettings: ObservableObject {
             ?? []
         if loadedPetSkins.isEmpty,
            let legacyPath = defaults.string(forKey: Keys.customPetArtworkPath),
-           NSImage(contentsOfFile: legacyPath) != nil {
+           DownsampledImage.canDecode(url: URL(fileURLWithPath: legacyPath)) {
             loadedPetSkins = [PetSkin(id: "legacy-custom", name: "自定义皮肤", path: legacyPath)]
         }
-        var loadedPetSkinImages: [String: NSImage] = [:]
         loadedPetSkins = loadedPetSkins.filter { skin in
-            guard let image = NSImage(contentsOfFile: skin.path) else {
-                return false
-            }
-            loadedPetSkinImages[skin.id] = image
-            return true
+            DownsampledImage.canDecode(url: URL(fileURLWithPath: skin.path))
         }
         let storedSelectedPetSkinID = defaults.string(forKey: Keys.selectedPetSkinID)
             ?? (defaults.string(forKey: Keys.customPetArtworkPath) == nil ? nil : loadedPetSkins.first?.id)
 
         self.petSkins = loadedPetSkins
-        self.petSkinImages = loadedPetSkinImages
+        self.petSkinImages = [:]
         self.selectedPetSkinID = loadedPetSkins.contains { $0.id == storedSelectedPetSkinID }
             ? storedSelectedPetSkinID
             : nil
@@ -144,6 +171,10 @@ final class CodexPetsSettings: ObservableObject {
         self.fileChangeRefreshMinimumGap = Self.clamped(defaults.object(forKey: Keys.fileChangeRefreshMinimumGap) as? TimeInterval ?? 3, min: 1, max: 30)
         self.rateLimitSource = RateLimitSourcePreference(rawValue: defaults.string(forKey: Keys.rateLimitSource) ?? "") ?? .appServerFirst
         self.showPeriodUsage = defaults.object(forKey: Keys.showPeriodUsage) as? Bool ?? true
+        self.usagePeriodLayout = defaults.data(forKey: Keys.usagePeriodLayout)
+            .flatMap { try? JSONDecoder().decode(UsagePeriodLayout.self, from: $0) }
+            ?? .default
+        self.appearanceTheme = AppearanceTheme(rawValue: defaults.string(forKey: Keys.appearanceTheme) ?? "") ?? .light
         self.taskHistoryRange = TaskHistoryRange(rawValue: defaults.string(forKey: Keys.taskHistoryRange) ?? "") ?? .threeDays
         self.launchAtLoginEnabled = launchAtLoginManager.isEnabled
         self.showMenuBarIcon = defaults.object(forKey: Keys.showMenuBarIcon) as? Bool ?? true
@@ -185,16 +216,28 @@ final class CodexPetsSettings: ObservableObject {
     }
 
     var selectedPetSkinImage: NSImage? {
-        selectedPetSkinID.flatMap { petSkinImages[$0] }
+        guard let selectedPetSkinID,
+              let skin = petSkins.first(where: { $0.id == selectedPetSkinID }) else {
+            return nil
+        }
+        return image(for: skin)
     }
 
     func image(for skin: PetSkin) -> NSImage? {
-        petSkinImages[skin.id]
+        if let image = petSkinImages[skin.id] {
+            return image
+        }
+        let image = DownsampledImage.load(
+            url: URL(fileURLWithPath: skin.path),
+            maxPixelSize: 320
+        )
+        petSkinImages[skin.id] = image
+        return image
     }
 
     @discardableResult
     func importPetSkin(data: Data, name: String) -> String? {
-        guard let image = NSImage(data: data) else {
+        guard let image = DownsampledImage.load(data: data, maxPixelSize: 320) else {
             petArtworkError = "所选文件不是可用的图片。"
             return nil
         }

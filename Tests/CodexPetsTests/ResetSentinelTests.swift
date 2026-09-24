@@ -38,3 +38,30 @@ func resetSentinelNextScanUsesHalfHourBoundary() throws {
 
     #expect(ResetSentinelLogic.nextScan(after: now, calendar: Calendar(identifier: .gregorian)) == expected)
 }
+
+@MainActor
+@Test
+func resetSentinelRefreshPreservesChineseTitlesAndLocalizesNewEvents() throws {
+    let store = ResetSentinelStore()
+    let existing = RemoteEvent(
+        tweetID: "2098685367058612394",
+        tweetURL: "https://x.com/thsottiaux/status/2098685367058612394",
+        text: "Reset all propagated. Sweet dreams.",
+        announcedAt: "2026-09-12T08:09:17.000Z",
+        resetType: .reset
+    )
+    let newEvent = RemoteEvent(
+        tweetID: "2100000000000000000",
+        tweetURL: "https://x.com/thsottiaux/status/2100000000000000000",
+        text: "A new reset card was added.",
+        announcedAt: "2026-09-20T08:00:00.000Z",
+        resetType: .banked
+    )
+
+    let events = try store.localizedEvents([newEvent, existing])
+
+    #expect(events[0].title == "全量重置已传播完成")
+    #expect(events[0].summary == "全量重置已传播完成")
+    #expect(events[1].title == "第 2 次重置（重置卡）")
+    #expect(events[1].summary == "A new reset card was added.")
+}

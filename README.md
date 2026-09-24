@@ -26,7 +26,7 @@ codex-pet 是一款原生 macOS 桌面宠物，用于监测当前 Mac 上的 Cod
 - 详情面板显示当前运行和最近活动的任务。
 - 显示任务 token 用量及活跃子代理数量。
 - 显示 Codex 可用额度窗口、刷新时间和剩余重置次数。
-- 显示 24 小时、7 天和 30 天 token 用量统计。
+- 显示今天、24 小时、7 天和 30 天 token 用量统计，并可配置顺序和显示状态。
 - 支持宠物换肤、右键隐藏、菜单栏恢复和开机自启。
 - 菜单栏可显示宠物、本机 `5h` 和 `7d` 额度，并支持拖拽排序或隐藏。
 
@@ -46,7 +46,7 @@ codex-pet 是一款原生 macOS 桌面宠物，用于监测当前 Mac 上的 Cod
 设置窗口包含：
 
 - `Codex`：本机状态、历史用量、文件监听刷新频率，额度来源和任务范围。
-- `启动与外观`：宠物换肤、菜单栏项目、开机自启和显示选项。
+- `启动与外观`：宠物换肤、消耗量项目、菜单栏项目、开机自启和显示选项。
 - `关于`：版本和本机监测能力说明。
 
 ### 构建和运行
@@ -141,7 +141,7 @@ The app reads local Codex data only. It does not connect to remote accounts, pro
 - Local detail panel with running and recent tasks.
 - Per-task token usage and active subagent counts.
 - Codex quota windows, reset times, and remaining reset credits.
-- Token-usage totals for the last 24 hours, 7 days, and 30 days.
+- Token-usage totals for today and the last 24 hours, 7 days, and 30 days, with configurable order and visibility.
 - Custom pet artwork, context-menu hiding, menu-bar recovery, and launch at login.
 - Reorderable menu-bar items for the pet and local `5h` / `7d` quotas.
 

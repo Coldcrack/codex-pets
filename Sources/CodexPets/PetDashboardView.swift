@@ -20,6 +20,7 @@ struct PetDashboardView: View {
     @State private var isHovering = false
     @State private var isPressed = false
     @State private var bubbleVisible = false
+    @Environment(\.colorScheme) private var colorScheme
 
     private var snapshot: UsageSnapshot { viewModel.snapshot }
 
@@ -63,19 +64,20 @@ struct PetDashboardView: View {
                 bubbleVisible = true
             }
         }
+        .preferredColorScheme(settings.appearanceTheme.colorScheme)
     }
 
     private var statusBubble: some View {
         ZStack(alignment: .topLeading) {
             WhaleThoughtBubbleShape()
-                .fill(Color(red: 0.96, green: 0.97, blue: 1.0).opacity(0.97))
+                .fill(bubbleBackground)
                 .overlay {
                     WhaleThoughtBubbleShape()
-                        .stroke(Color(red: 0.13, green: 0.19, blue: 0.44).opacity(0.78),
+                        .stroke(bubbleBorder,
                                 style: StrokeStyle(lineWidth: 4, lineJoin: .round))
                 }
                 .shadow(color: Color(red: 0.10, green: 0.16, blue: 0.38).opacity(0.22), radius: 13, y: 6)
-            ThoughtBubbleDots(isVisible: bubbleVisible)
+            ThoughtBubbleDots(isVisible: bubbleVisible, background: bubbleBackground, border: bubbleBorder)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             bubbleContent
                 .frame(width: 136)
@@ -92,7 +94,7 @@ struct PetDashboardView: View {
         VStack(spacing: 2) {
             Text("Codex 额度")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 0.33, green: 0.42, blue: 0.66))
+                .foregroundStyle(bubblePrimaryText)
             HStack(spacing: 8) {
                 ForEach(Array(metrics.prefix(2))) { metric in
                     VStack(spacing: 0) {
@@ -105,7 +107,7 @@ struct PetDashboardView: View {
                         if metrics.count > 1 {
                             Text(metric.label)
                                 .font(.system(size: 7.5, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color(red: 0.48, green: 0.56, blue: 0.74))
+                                .foregroundStyle(bubbleSecondaryText)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -113,14 +115,34 @@ struct PetDashboardView: View {
                 if metrics.isEmpty {
                     Text("--")
                         .font(.system(size: 25, weight: .black, design: .rounded))
-                        .foregroundStyle(Color(red: 0.33, green: 0.42, blue: 0.66))
+                        .foregroundStyle(bubblePrimaryText)
                 }
             }
             Text(snapshot.isRunning ? "正在认真干活…" : "摸鱼待命中…")
                 .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                .foregroundStyle(Color(red: 0.61, green: 0.68, blue: 0.82))
+                .foregroundStyle(bubbleSecondaryText)
                 .lineLimit(1)
         }
+    }
+
+    private var bubbleBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 0.10, green: 0.11, blue: 0.14).opacity(0.97)
+            : Color(red: 0.96, green: 0.97, blue: 1.0).opacity(0.97)
+    }
+
+    private var bubbleBorder: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.62)
+            : Color(red: 0.13, green: 0.19, blue: 0.44).opacity(0.78)
+    }
+
+    private var bubblePrimaryText: Color {
+        colorScheme == .dark ? .white.opacity(0.92) : Color(red: 0.33, green: 0.42, blue: 0.66)
+    }
+
+    private var bubbleSecondaryText: Color {
+        colorScheme == .dark ? .white.opacity(0.62) : Color(red: 0.48, green: 0.56, blue: 0.74)
     }
 
     private var metrics: [BubbleMetric] {
@@ -152,15 +174,15 @@ struct PetDashboardView: View {
 }
 
 enum PetArtwork {
-    static var defaultImage: NSImage? {
+    static let defaultImage: NSImage? = {
         if let bundledURL = Bundle.main.url(forResource: "CodexPet", withExtension: "png"),
-           let image = NSImage(contentsOf: bundledURL) {
+           let image = DownsampledImage.load(url: bundledURL, maxPixelSize: 320) {
             return image
         }
         let developmentURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("Resources/CodexPet.png")
-        return NSImage(contentsOf: developmentURL)
-    }
+        return DownsampledImage.load(url: developmentURL, maxPixelSize: 320)
+    }()
 }
 
 private struct WhaleThoughtBubbleShape: Shape {
@@ -197,17 +219,19 @@ private struct WhaleThoughtBubbleShape: Shape {
 
 private struct ThoughtBubbleDots: View {
     let isVisible: Bool
+    let background: Color
+    let border: Color
 
     var body: some View {
         ZStack {
             Ellipse()
-                .fill(Color(red: 0.96, green: 0.97, blue: 1.0))
-                .overlay(Ellipse().stroke(Color(red: 0.13, green: 0.19, blue: 0.44).opacity(0.78), lineWidth: 3))
+                .fill(background)
+                .overlay(Ellipse().stroke(border, lineWidth: 3))
                 .frame(width: 22, height: 16).position(x: 127, y: 133)
                 .scaleEffect(isVisible ? 1 : 0.7).opacity(isVisible ? 1 : 0)
             Ellipse()
-                .fill(Color(red: 0.96, green: 0.97, blue: 1.0))
-                .overlay(Ellipse().stroke(Color(red: 0.13, green: 0.19, blue: 0.44).opacity(0.78), lineWidth: 2.5))
+                .fill(background)
+                .overlay(Ellipse().stroke(border, lineWidth: 2.5))
                 .frame(width: 11.2, height: 8.3).position(x: 102, y: 149)
                 .scaleEffect(isVisible ? 1 : 0.7).opacity(isVisible ? 1 : 0)
         }
@@ -223,6 +247,7 @@ struct DetailPanelView: View {
     let onRefresh: () -> Void
 
     private var snapshot: UsageSnapshot { viewModel.snapshot }
+    private var palette: DetailPanelPalette { DetailPanelPalette(theme: settings.appearanceTheme) }
 
     private var layout: DetailPanelLayout {
         DetailPanelLayout(
@@ -244,12 +269,12 @@ struct DetailPanelView: View {
     var body: some View {
         ZStack(alignment: .top) {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(DetailPanelPalette.background)
+                .fill(palette.background)
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(DetailPanelPalette.border, lineWidth: 1)
+                        .stroke(palette.border, lineWidth: 1)
                 }
-                .shadow(color: DetailPanelPalette.shadow, radius: 20, y: 10)
+                .shadow(color: palette.shadow, radius: 20, y: 10)
 
             ZStack(alignment: .top) {
                 VStack(spacing: 10) {
@@ -269,6 +294,7 @@ struct DetailPanelView: View {
         }
         .frame(width: layout.width, height: detailHeight)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .preferredColorScheme(settings.appearanceTheme.colorScheme)
     }
 
     private var contentAnimation: Animation? {
@@ -290,17 +316,17 @@ struct DetailPanelView: View {
         HStack(spacing: 6) {
             Text(snapshot.isRunning ? "正在运行" : "最近活动")
                 .font(.system(size: 11, weight: .heavy))
-                .foregroundStyle(DetailPanelPalette.primaryText)
+                .foregroundStyle(palette.primaryText)
             Spacer()
             Text(snapshot.isRunning ? "\(snapshot.tasks.filter { $0.status == .running }.count) 个任务" : "空闲")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(snapshot.isRunning ? DetailPanelPalette.green : DetailPanelPalette.tertiaryText)
+                .foregroundStyle(snapshot.isRunning ? palette.green : palette.tertiaryText)
             Button(action: onRefresh) { RefreshIcon(isRefreshing: viewModel.isRefreshing) }
-                .buttonStyle(IconButtonStyle()).disabled(viewModel.isRefreshing).help("刷新本机 Codex")
+                .buttonStyle(IconButtonStyle(palette: palette)).disabled(viewModel.isRefreshing).help("刷新本机 Codex")
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill").font(.system(size: 10, weight: .bold))
             }
-            .buttonStyle(IconButtonStyle()).help("设置")
+            .buttonStyle(IconButtonStyle(palette: palette)).help("设置")
         }
         .frame(height: DetailPanelMetrics.detailHeaderHeight)
     }
@@ -310,7 +336,7 @@ struct DetailPanelView: View {
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 6) {
-                        ForEach(snapshot.tasks) { task in TaskRow(task: task, now: context.date) }
+                        ForEach(snapshot.tasks) { task in TaskRow(task: task, now: context.date, palette: palette) }
                         if snapshot.tasks.isEmpty { emptyState }
                     }
                 }
@@ -323,34 +349,34 @@ struct DetailPanelView: View {
 
     @ViewBuilder
     private var quotaResetStrip: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "gauge.with.dots.needle.50percent")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(DetailPanelPalette.secondaryText)
+        VStack(alignment: .leading, spacing: 2) {
             ForEach(snapshot.displayRateLimitWindows) { window in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
-                        Text(window.shortLabel == "5h" ? "5 小时" : "每周")
-                            .foregroundStyle(DetailPanelPalette.secondaryText)
-                        Text("剩余 \(Formatters.percent(window.remainingPercent))")
-                            .foregroundStyle(quotaColor(for: window.shortLabel))
-                            .monospacedDigit()
-                    }
-                    HStack(spacing: 3) {
-                        Text("刷新 \(Formatters.quotaResetTime(window.resetsAt))")
-                            .foregroundStyle(DetailPanelPalette.tertiaryText)
-                            .monospacedDigit()
-                        if ResetCreditsPlacement.showsInLocalQuotaRow(label: window.shortLabel) {
-                            ResetCreditsIndicator(
-                                resetCredits: snapshot.resetCredits,
-                                fontSize: 7.8,
-                                foregroundColor: DetailPanelPalette.tertiaryText
-                            )
-                        }
-                    }
+                HStack(spacing: 6) {
+                    Label(
+                        window.shortLabel == "5h" ? "5 小时" : "7 天",
+                        systemImage: window.shortLabel == "5h" ? "gauge.with.dots.needle.50percent" : "calendar"
+                    )
+                        .foregroundStyle(palette.secondaryText)
+                    Spacer(minLength: 6)
+                    Text("剩余 \(Formatters.percent(window.remainingPercent))")
+                        .foregroundStyle(quotaColor(for: window.shortLabel))
+                        .monospacedDigit()
+                    Text("刷新 \(Formatters.quotaResetTime(window.resetsAt, includeDate: window.shortLabel == "7d"))")
+                        .foregroundStyle(palette.tertiaryText)
+                        .monospacedDigit()
                 }
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 14, alignment: .leading)
+            }
+            if ResetCreditsDisplay(resetCredits: snapshot.resetCredits) != nil {
+                HStack(spacing: 4) {
+                    ResetCreditsIndicator(
+                        resetCredits: snapshot.resetCredits,
+                        fontSize: 8.5,
+                        foregroundColor: palette.tertiaryText
+                    )
+                    Spacer(minLength: 0)
+                }
             }
         }
         .padding(.top, DetailPanelMetrics.quotaResetTopPadding(
@@ -358,31 +384,37 @@ struct DetailPanelView: View {
             collapsedHeight: layout.collapsedHeight
         ))
         .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, minHeight: DetailPanelMetrics.quotaResetStripHeight, alignment: .top)
     }
 
     private func quotaColor(for label: String) -> Color {
-        label == "5h" ? DetailPanelPalette.green : DetailPanelPalette.blue
+        label == "5h" ? palette.green : palette.blue
     }
 
     private var emptyState: some View {
         HStack {
             Text(snapshot.errorMessage ?? "暂无 Codex 活动")
-                .font(.system(size: 11, weight: .semibold)).foregroundStyle(DetailPanelPalette.secondaryText)
+                .font(.system(size: 11, weight: .semibold)).foregroundStyle(palette.secondaryText)
             Spacer()
         }
         .padding(.horizontal, 10).frame(height: 36)
-        .background(DetailPanelPalette.rowBackground, in: RoundedRectangle(cornerRadius: 10))
+        .background(palette.rowBackground, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var periodUsage: some View {
-        VStack(spacing: 8) {
-            Divider().overlay(DetailPanelPalette.border)
-            HStack(spacing: 8) {
-                PeriodUsageCell(label: "24小时", value: usageText(snapshot.usage24h))
-                PeriodUsageCell(label: "7天", value: usageText(snapshot.usage7d))
-                PeriodUsageCell(label: "30天", value: usageText(snapshot.usage30d))
+        HStack(spacing: 8) {
+            ForEach(settings.usagePeriodLayout.visibleItems) { item in
+                PeriodUsageCell(label: item.label, value: usageText(tokens(for: item)), palette: palette)
             }
+        }
+    }
+
+    private func tokens(for item: UsagePeriodItem) -> Int {
+        switch item {
+        case .today: snapshot.usageToday
+        case .twentyFourHours: snapshot.usage24h
+        case .sevenDays: snapshot.usage7d
+        case .thirtyDays: snapshot.usage30d
         }
     }
 
@@ -391,24 +423,38 @@ struct DetailPanelView: View {
     }
 }
 
-private enum DetailPanelPalette {
-    static let background = Color(red: 0.985, green: 0.988, blue: 0.995).opacity(0.985)
-    static let rowBackground = Color(red: 0.94, green: 0.95, blue: 0.975).opacity(0.82)
-    static let primaryText = Color(red: 0.12, green: 0.14, blue: 0.20)
-    static let secondaryText = Color(red: 0.34, green: 0.37, blue: 0.44)
-    static let tertiaryText = Color(red: 0.50, green: 0.53, blue: 0.60)
-    static let border = Color.black.opacity(0.10)
-    static let shadow = Color.black.opacity(0.18)
-    static let green = Color(red: 0.10, green: 0.56, blue: 0.32)
-    static let blue = Color(red: 0.16, green: 0.42, blue: 0.78)
+private struct DetailPanelPalette {
+    let theme: AppearanceTheme
+
+    var background: Color {
+        theme == .dark
+            ? Color(red: 0.08, green: 0.09, blue: 0.11).opacity(0.985)
+            : Color(red: 0.985, green: 0.988, blue: 0.995).opacity(0.985)
+    }
+
+    var rowBackground: Color {
+        theme == .dark
+            ? Color(red: 0.14, green: 0.15, blue: 0.18).opacity(0.94)
+            : Color(red: 0.94, green: 0.95, blue: 0.975).opacity(0.82)
+    }
+
+    var primaryText: Color { theme == .dark ? .white.opacity(0.92) : Color(red: 0.12, green: 0.14, blue: 0.20) }
+    var secondaryText: Color { theme == .dark ? .white.opacity(0.70) : Color(red: 0.34, green: 0.37, blue: 0.44) }
+    var tertiaryText: Color { theme == .dark ? .white.opacity(0.48) : Color(red: 0.50, green: 0.53, blue: 0.60) }
+    var border: Color { theme == .dark ? .white.opacity(0.12) : .black.opacity(0.10) }
+    var shadow: Color { .black.opacity(theme == .dark ? 0.34 : 0.18) }
+    var green: Color { theme == .dark ? Color(red: 0.28, green: 0.78, blue: 0.48) : Color(red: 0.10, green: 0.56, blue: 0.32) }
+    var blue: Color { theme == .dark ? Color(red: 0.38, green: 0.65, blue: 1.0) : Color(red: 0.16, green: 0.42, blue: 0.78) }
 }
 
 private struct IconButtonStyle: ButtonStyle {
+    let palette: DetailPanelPalette
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(configuration.isPressed ? DetailPanelPalette.primaryText : DetailPanelPalette.secondaryText)
+            .foregroundStyle(configuration.isPressed ? palette.primaryText : palette.secondaryText)
             .frame(width: 20, height: 20)
-            .background(configuration.isPressed ? Color.black.opacity(0.10) : Color.black.opacity(0.045), in: Circle())
+            .background(configuration.isPressed ? Color.primary.opacity(0.14) : Color.primary.opacity(0.07), in: Circle())
     }
 }
 
@@ -420,7 +466,7 @@ private struct RefreshIcon: View {
             if isRefreshing {
                 TimelineView(.periodic(from: Date(), by: 0.25)) { context in
                     icon.rotationEffect(.degrees(rotationAngle(at: context.date)))
-                        .foregroundStyle(DetailPanelPalette.green)
+                        .foregroundStyle(.green)
                 }
             } else { icon }
         }
@@ -435,38 +481,39 @@ private struct RefreshIcon: View {
 private struct TaskRow: View {
     let task: CodexTask
     let now: Date
+    let palette: DetailPanelPalette
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
-                Text(task.title).font(.system(size: 11, weight: .bold)).foregroundStyle(DetailPanelPalette.primaryText).lineLimit(1)
+                Text(task.title).font(.system(size: 11, weight: .bold)).foregroundStyle(palette.primaryText).lineLimit(1)
                 Spacer(minLength: 4)
                 Text(task.status.label).font(.system(size: 10, weight: .bold)).foregroundStyle(statusColor)
             }
             HStack(spacing: 6) {
-                Text(task.displayDetail(now: now)).font(.system(size: 10, weight: .medium)).foregroundStyle(DetailPanelPalette.secondaryText).lineLimit(1)
+                Text(task.displayDetail(now: now)).font(.system(size: 10, weight: .medium)).foregroundStyle(palette.secondaryText).lineLimit(1)
                 Spacer(minLength: 8)
                 if let badgeText = TaskBadgeFormatter.subagentBadgeText(for: task.activeSubagentCount) {
                     Text(badgeText)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(DetailPanelPalette.green)
+                        .foregroundStyle(palette.green)
                         .padding(.horizontal, 5).padding(.vertical, 2)
-                        .background(DetailPanelPalette.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
+                        .background(palette.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
                 }
                 Text(Formatters.compactTokens(task.tokenCount))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(DetailPanelPalette.secondaryText)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundStyle(palette.secondaryText)
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(DetailPanelPalette.rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(DetailPanelPalette.border.opacity(0.65)))
+        .background(palette.rowBackground, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(palette.border.opacity(0.65)))
     }
 
     private var statusColor: Color {
         switch task.status {
-        case .running: DetailPanelPalette.green
-        case .recent: DetailPanelPalette.blue
-        case .idle: DetailPanelPalette.tertiaryText
+        case .running: palette.green
+        case .recent: palette.blue
+        case .idle: palette.tertiaryText
         }
     }
 }
@@ -474,11 +521,12 @@ private struct TaskRow: View {
 private struct PeriodUsageCell: View {
     let label: String
     let value: String
+    let palette: DetailPanelPalette
 
     var body: some View {
         VStack(spacing: 3) {
-            Text(label).font(.system(size: 9.5, weight: .semibold)).foregroundStyle(DetailPanelPalette.tertiaryText)
-            Text(value).font(.system(size: 11, weight: .heavy, design: .rounded)).foregroundStyle(DetailPanelPalette.primaryText)
+            Text(label).font(.system(size: 9.5, weight: .semibold)).foregroundStyle(palette.tertiaryText)
+            Text(value).font(.system(size: 11, weight: .heavy, design: .rounded)).foregroundStyle(palette.primaryText)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 6)
     }

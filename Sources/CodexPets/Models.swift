@@ -43,6 +43,7 @@ struct UsageSnapshot: Equatable {
     var secondaryResetsAt: Date? = nil
     var rateLimitWindows: [UsageQuotaWindow] = []
     var resetCredits: RateLimitResetCredits? = nil
+    var usageToday: Int = 0
     var usage24h: Int
     var usage7d: Int
     var usage30d: Int
@@ -163,6 +164,62 @@ enum MenuBarDisplayItem: String, CaseIterable, Codable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
+enum UsagePeriodItem: String, CaseIterable, Codable, Identifiable, Sendable {
+    case today
+    case twentyFourHours
+    case sevenDays
+    case thirtyDays
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .today: "今天"
+        case .twentyFourHours: "24小时"
+        case .sevenDays: "7天"
+        case .thirtyDays: "30天"
+        }
+    }
+}
+
+struct UsagePeriodLayout: Equatable, Codable, Sendable {
+    let visibleItems: [UsagePeriodItem]
+    let hiddenItems: [UsagePeriodItem]
+
+    static let `default` = UsagePeriodLayout(
+        visibleItems: UsagePeriodItem.allCases,
+        hiddenItems: []
+    )
+
+    init(visibleItems: [UsagePeriodItem], hiddenItems: [UsagePeriodItem]) {
+        var seen: Set<UsagePeriodItem> = []
+        var visible = visibleItems.filter { seen.insert($0).inserted }
+        var hidden = hiddenItems.filter { seen.insert($0).inserted }
+        hidden.append(contentsOf: UsagePeriodItem.allCases.filter { seen.insert($0).inserted })
+
+        if visible.isEmpty, let recoveryItem = hidden.first {
+            visible = [recoveryItem]
+            hidden.removeFirst()
+        }
+
+        self.visibleItems = visible
+        self.hiddenItems = hidden
+    }
+
+    private enum CodingKeys: CodingKey {
+        case visibleItems
+        case hiddenItems
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            visibleItems: try container.decode([UsagePeriodItem].self, forKey: .visibleItems),
+            hiddenItems: try container.decode([UsagePeriodItem].self, forKey: .hiddenItems)
+        )
+    }
+}
+
 struct MenuBarLayout: Equatable, Codable, Sendable {
     let visibleItems: [MenuBarDisplayItem]
     let hiddenItems: [MenuBarDisplayItem]
@@ -202,11 +259,12 @@ struct MenuBarLayout: Equatable, Codable, Sendable {
 }
 
 struct PeriodUsage: Equatable, Sendable {
+    var today: Int = 0
     var day: Int
     var week: Int
     var month: Int
 
-    static let zero = PeriodUsage(day: 0, week: 0, month: 0)
+    static let zero = PeriodUsage(today: 0, day: 0, week: 0, month: 0)
 }
 
 struct CodexTask: Identifiable, Equatable {
@@ -276,6 +334,7 @@ enum RateLimitSourcePreference: String, CaseIterable, Identifiable {
 
 enum TaskHistoryRange: String, CaseIterable, Identifiable {
     case day
+    case today
     case threeDays
     case sevenDays
     case month
@@ -286,6 +345,8 @@ enum TaskHistoryRange: String, CaseIterable, Identifiable {
         switch self {
         case .day:
             "24小时"
+        case .today:
+            "今天"
         case .threeDays:
             "3天"
         case .sevenDays:
@@ -295,22 +356,28 @@ enum TaskHistoryRange: String, CaseIterable, Identifiable {
         }
     }
 
-    var seconds: Int {
+    func startDate(now: Date, calendar: Calendar = .current) -> Date {
         switch self {
         case .day:
-            24 * 60 * 60
+            now.addingTimeInterval(-24 * 60 * 60)
+        case .today:
+            calendar.startOfDay(for: now)
         case .threeDays:
-            3 * 24 * 60 * 60
+            now.addingTimeInterval(-3 * 24 * 60 * 60)
         case .sevenDays:
-            7 * 24 * 60 * 60
+            now.addingTimeInterval(-7 * 24 * 60 * 60)
         case .month:
-            30 * 24 * 60 * 60
+            now.addingTimeInterval(-30 * 24 * 60 * 60)
         }
+    }
+
+    func startEpoch(now: Date, calendar: Calendar = .current) -> Int {
+        Int(startDate(now: now, calendar: calendar).timeIntervalSince1970)
     }
 
     var queryLimit: Int {
         switch self {
-        case .day:
+        case .day, .today:
             40
         case .threeDays:
             60

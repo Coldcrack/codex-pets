@@ -2,10 +2,10 @@ import SwiftUI
 
 struct ResetSentinelView: View {
     @ObservedObject var store: ResetSentinelStore
-    @AppStorage("resetSentinelAutoScanEnabled") private var autoScanEnabled = true
+    @AppStorage("resetSentinelAutoScanEnabled") private var autoScanEnabled = false
     @Environment(\.openURL) private var openURL
 
-    private let historyWeeks = 26
+    private let minimumHistoryWeeks = 26
     private let historyCellSize: CGFloat = 17
     private let historyCellGap: CGFloat = 4
 
@@ -40,7 +40,7 @@ struct ResetSentinelView: View {
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(.secondary)
-                Text("codex重置哨兵")
+                Text("重置哨兵")
                     .font(.system(size: 24, weight: .bold))
                 Text("追踪公开重置公告，从历史记录中发现下一次信号。")
                     .font(.system(size: 12.5, weight: .medium))
@@ -143,7 +143,6 @@ struct ResetSentinelView: View {
 
     private var historyCard: some View {
         let calendar = historyCalendar
-        let start = historyStartDate(calendar: calendar)
         let eventsByDay = Dictionary(grouping: store.events) { event in
             calendar.startOfDay(for: event.announcedAt)
         }.compactMapValues { events in
@@ -153,7 +152,7 @@ struct ResetSentinelView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("RESET MAP / 26 WEEKS")
+                Text("RESET MAP / HISTORY")
                     .font(.system(size: 9.5, weight: .bold, design: .rounded))
                     .tracking(1.1)
                     .foregroundStyle(.secondary)
@@ -169,30 +168,16 @@ struct ResetSentinelView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            VStack(alignment: .leading, spacing: historyCellGap) {
-                HStack(spacing: historyCellGap) {
-                    Color.clear.frame(width: 16, height: 12)
-                    ForEach(0..<historyWeeks, id: \.self) { week in
-                        Text(monthLabel(week: week, start: start, calendar: calendar))
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: historyCellSize, height: 12, alignment: .leading)
-                    }
-                }
-
-                ForEach(0..<7, id: \.self) { weekday in
-                    HStack(spacing: historyCellGap) {
-                        Text(["一", "二", "三", "四", "五", "六", "日"][weekday])
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 16, alignment: .leading)
-                        ForEach(0..<historyWeeks, id: \.self) { week in
-                            let day = calendar.date(byAdding: .day, value: week * 7 + weekday, to: start)!
-                            historyCell(event: eventsByDay[calendar.startOfDay(for: day)])
-                        }
-                    }
-                }
+            GeometryReader { geometry in
+                let metrics = historyGridMetrics(width: geometry.size.width)
+                historyGrid(
+                    weeks: metrics.weeks,
+                    horizontalGap: metrics.gap,
+                    calendar: calendar,
+                    eventsByDay: eventsByDay
+                )
             }
+            .frame(height: 159)
 
             if let latest {
                 HStack(spacing: 7) {
@@ -224,32 +209,35 @@ struct ResetSentinelView: View {
             }
 
             ForEach(Array(store.events.suffix(6).reversed())) { event in
-                HStack(alignment: .top, spacing: 10) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(event.kind == .banked ? Color.blue.opacity(0.52) : Color.blue)
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(event.kind.label)
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundStyle(event.kind == .banked ? Color.blue.opacity(0.7) : .secondary)
-                            Text(dateText(event.announcedAt))
-                                .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Link(destination: event.sourceURL) {
+                Button { openURL(event.sourceURL) } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(event.kind == .banked ? Color.blue.opacity(0.52) : Color.blue)
+                            .frame(width: 8, height: 8)
+                            .padding(.top, 5)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(event.kind.label)
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundStyle(event.kind == .banked ? Color.blue.opacity(0.7) : .secondary)
+                                Text(dateText(event.announcedAt))
+                                    .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.tertiary)
+                            }
                             Text(event.title)
                                 .font(.system(size: 11.5, weight: .semibold))
                                 .foregroundStyle(.primary)
                                 .lineLimit(2)
                         }
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.tertiary)
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 if event.id != store.events.suffix(6).first?.id { Divider() }
             }
         }
@@ -314,11 +302,64 @@ struct ResetSentinelView: View {
         return calendar
     }
 
-    private func historyStartDate(calendar: Calendar, now: Date = Date()) -> Date {
+    private func historyStartDate(calendar: Calendar, weeks: Int, now: Date = Date()) -> Date {
         let today = calendar.startOfDay(for: now)
         let daysSinceMonday = (calendar.component(.weekday, from: today) + 5) % 7
         let currentMonday = calendar.date(byAdding: .day, value: -daysSinceMonday, to: today)!
-        return calendar.date(byAdding: .weekOfYear, value: -(historyWeeks - 1), to: currentMonday)!
+        return calendar.date(byAdding: .weekOfYear, value: -(weeks - 1), to: currentMonday)!
+    }
+
+    private func historyGridMetrics(width: CGFloat) -> (weeks: Int, gap: CGFloat) {
+        let labelWidth: CGFloat = 16
+        let weeks = max(
+            minimumHistoryWeeks,
+            Int((width - labelWidth + historyCellGap) / (historyCellSize + historyCellGap))
+        )
+        let gap = max(1, (width - labelWidth - CGFloat(weeks) * historyCellSize) / CGFloat(weeks))
+        return (weeks, gap)
+    }
+
+    private func historyColumns(weeks: Int, gap: CGFloat) -> [GridItem] {
+        [GridItem(.fixed(16), spacing: gap)]
+            + Array(repeating: GridItem(.fixed(historyCellSize), spacing: gap), count: weeks)
+    }
+
+    private func historyGrid(
+        weeks: Int,
+        horizontalGap: CGFloat,
+        calendar: Calendar,
+        eventsByDay: [Date: ResetSentinelEvent]
+    ) -> some View {
+        let start = historyStartDate(calendar: calendar, weeks: weeks)
+        let today = calendar.startOfDay(for: Date())
+        return LazyVGrid(
+            columns: historyColumns(weeks: weeks, gap: horizontalGap),
+            alignment: .leading,
+            spacing: historyCellGap
+        ) {
+            Color.clear.frame(height: 12)
+            ForEach(0..<weeks, id: \.self) { week in
+                Text(monthLabel(week: week, start: start, calendar: calendar))
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: historyCellSize, height: 12, alignment: .leading)
+            }
+
+            ForEach(0..<7, id: \.self) { weekday in
+                Text(["一", "二", "三", "四", "五", "六", "日"][weekday])
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 16, alignment: .leading)
+                ForEach(0..<weeks, id: \.self) { week in
+                    let day = calendar.date(byAdding: .day, value: week * 7 + weekday, to: start)!
+                    if day > today {
+                        Color.clear.frame(width: historyCellSize, height: historyCellSize)
+                    } else {
+                        historyCell(event: eventsByDay[calendar.startOfDay(for: day)])
+                    }
+                }
+            }
+        }
     }
 
     private func monthLabel(week: Int, start: Date, calendar: Calendar) -> String {
@@ -389,6 +430,7 @@ struct ResetSentinelView: View {
 private extension View {
     func sentinelCard() -> some View {
         padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)

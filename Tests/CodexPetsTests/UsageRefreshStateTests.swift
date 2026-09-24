@@ -168,6 +168,39 @@ func menuBarLayoutAlwaysKeepsAVisibleRecoveryItem() {
 }
 
 @Test
+func todayTaskRangeStartsAtLocalMidnight() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+    let now = try #require(calendar.date(from: DateComponents(
+        year: 2026,
+        month: 9,
+        day: 24,
+        hour: 15,
+        minute: 30
+    )))
+    let expected = try #require(calendar.date(from: DateComponents(
+        year: 2026,
+        month: 9,
+        day: 24
+    )))
+
+    #expect(TaskHistoryRange.today.startDate(now: now, calendar: calendar) == expected)
+    #expect(TaskHistoryRange.day.startDate(now: now, calendar: calendar) == now.addingTimeInterval(-86_400))
+    #expect(TaskHistoryRange.allCases == [.day, .today, .threeDays, .sevenDays, .month])
+}
+
+@Test
+func usagePeriodLayoutKeepsAtLeastOneVisibleItem() {
+    let layout = UsagePeriodLayout(
+        visibleItems: [],
+        hiddenItems: [.today, .twentyFourHours, .sevenDays, .thirtyDays]
+    )
+
+    #expect(layout.visibleItems == [.today])
+    #expect(layout.hiddenItems == [.twentyFourHours, .sevenDays, .thirtyDays])
+}
+
+@Test
 func menuBarDetailFrameAnchorsBelowStatusItemAndStaysOnScreen() {
     let frames = DetailWindowFrameCalculator.calculateBelowMenuBar(
         screenFrame: CGRect(x: 0, y: 0, width: 1_440, height: 875),

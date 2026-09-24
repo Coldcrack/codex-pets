@@ -50,7 +50,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .codex: "Codex"
-        case .resetSentinel: "codex重置哨兵"
+        case .resetSentinel: "重置哨兵"
         case .launch: "启动与外观"
         case .about: "关于"
         }
@@ -74,6 +74,8 @@ private struct SettingsDraft: Equatable {
     var fileChangeRefreshMinimumGap: TimeInterval = 3
     var rateLimitSource: RateLimitSourcePreference = .appServerFirst
     var showPeriodUsage = true
+    var usagePeriodLayout: UsagePeriodLayout = .default
+    var appearanceTheme: AppearanceTheme = .light
     var taskHistoryRange: TaskHistoryRange = .threeDays
     var selectedPetSkinID: String?
     var launchAtLoginEnabled = false
@@ -89,6 +91,8 @@ private struct SettingsDraft: Equatable {
         fileChangeRefreshMinimumGap = settings.fileChangeRefreshMinimumGap
         rateLimitSource = settings.rateLimitSource
         showPeriodUsage = settings.showPeriodUsage
+        usagePeriodLayout = settings.usagePeriodLayout
+        appearanceTheme = settings.appearanceTheme
         taskHistoryRange = settings.taskHistoryRange
         selectedPetSkinID = settings.selectedPetSkinID
         launchAtLoginEnabled = settings.launchAtLoginEnabled
@@ -214,6 +218,93 @@ private struct MenuBarLayoutEditor: View {
     }
 }
 
+private struct UsagePeriodLayoutEditor: View {
+    @Binding var layout: UsagePeriodLayout
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            itemZone(title: "显示区", items: layout.visibleItems, isHidden: false)
+            itemZone(title: "隐藏区", items: layout.hiddenItems, isHidden: true)
+        }
+    }
+
+    private func itemZone(title: String, items: [UsagePeriodItem], isHidden: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isHidden ? .secondary : .primary)
+            HStack(spacing: 7) {
+                ForEach(items) { item in
+                    itemCard(item)
+                        .draggable(item.rawValue)
+                        .dropDestination(for: String.self) { values, _ in
+                            move(values.first, toHidden: isHidden, before: item)
+                        }
+                }
+                if items.isEmpty {
+                    Text("拖到这里")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .padding(.horizontal, 8)
+            .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .dropDestination(for: String.self) { values, _ in
+                move(values.first, toHidden: isHidden, before: nil)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func itemCard(_ item: UsagePeriodItem) -> some View {
+        VStack(spacing: 2) {
+            Text("1.2亿").font(.system(size: 10, weight: .medium, design: .rounded))
+            Text(item.label).font(.system(size: 8, weight: .semibold, design: .rounded))
+        }
+        .monospacedDigit()
+        .foregroundStyle(.primary)
+        .frame(width: 54, height: 38)
+        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+        .help("拖动以排序或切换显示状态")
+    }
+
+    private func move(_ rawValue: String?, toHidden: Bool, before target: UsagePeriodItem?) -> Bool {
+        guard let rawValue, let item = UsagePeriodItem(rawValue: rawValue) else {
+            return false
+        }
+        if target == item {
+            return true
+        }
+        var visible = layout.visibleItems.filter { $0 != item }
+        var hidden = layout.hiddenItems.filter { $0 != item }
+        if toHidden {
+            guard !visible.isEmpty else {
+                return false
+            }
+            insert(item, before: target, into: &hidden)
+        } else {
+            insert(item, before: target, into: &visible)
+        }
+        layout = UsagePeriodLayout(visibleItems: visible, hiddenItems: hidden)
+        return true
+    }
+
+    private func insert(_ item: UsagePeriodItem, before target: UsagePeriodItem?, into items: inout [UsagePeriodItem]) {
+        if let target, let index = items.firstIndex(of: target) {
+            items.insert(item, at: index)
+        } else {
+            items.append(item)
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var settings: CodexPetsSettings
     let onRefresh: () -> Void
@@ -230,7 +321,7 @@ struct SettingsView: View {
             sidebar
             Divider()
             VStack(alignment: .leading, spacing: 16) {
-                Text(selectedTab == .resetSentinel ? "codex重置哨兵" : "codex-pet 设置")
+                Text(selectedTab == .resetSentinel ? "重置哨兵" : "codex-pet 设置")
                     .font(.system(size: 18, weight: .bold))
                 if selectedTab == .resetSentinel {
                     ResetSentinelView(store: resetSentinelStore)
@@ -245,6 +336,7 @@ struct SettingsView: View {
         }
         .frame(width: 900)
         .frame(minHeight: 660)
+        .preferredColorScheme(settings.appearanceTheme.colorScheme)
         .onAppear { reloadDraft() }
         .onChange(of: settings.showMenuBarIcon) { _, isVisible in
             draft.showMenuBarIcon = isVisible
@@ -298,6 +390,7 @@ struct SettingsView: View {
                     .padding(.vertical, 8)
                     .background(selectedTab == tab ? Color.primary.opacity(0.10) : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -340,15 +433,12 @@ struct SettingsView: View {
                 HelpLabel(title: "额度来源", help: "决定本机 Codex 额度优先从实时接口读取，还是只使用本地记录。")
             }
             .pickerStyle(.segmented)
-            Toggle(isOn: $draft.showPeriodUsage) {
-                HelpLabel(title: "显示 24小时 / 7天 / 30天", help: "控制详情页是否显示本机 token 用量。")
-            }
             Picker(selection: $draft.taskHistoryRange) {
                 ForEach(TaskHistoryRange.allCases) { range in
                     Text(range.label).tag(range)
                 }
             } label: {
-                HelpLabel(title: "任务范围", help: "决定详情页读取最近多长时间内的本机 Codex 对话。")
+                HelpLabel(title: "任务范围", help: "决定详情页读取最近多长时间内的本机 Codex 对话；今天从本地当天 0 点算到扫描时刻。")
             }
             .pickerStyle(.segmented)
         }
@@ -393,6 +483,22 @@ struct SettingsView: View {
             }
         }
         Section("启动与外观") {
+            Picker(selection: $draft.appearanceTheme) {
+                ForEach(AppearanceTheme.allCases) { theme in
+                    Text(theme.label).tag(theme)
+                }
+            } label: {
+                HelpLabel(title: "主题色", help: "切换详情面板、宠物气泡和设置页的浅色或深色主题。")
+            }
+            .pickerStyle(.segmented)
+            Toggle(isOn: $draft.showPeriodUsage) {
+                HelpLabel(title: "显示消耗量", help: "控制详情页底部是否显示本机 token 用量。")
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                HelpLabel(title: "消耗量项目编辑", help: "拖动今天、24小时、7天和30天项目调整顺序或显示状态。")
+                UsagePeriodLayoutEditor(layout: $draft.usagePeriodLayout)
+            }
+            .disabled(!draft.showPeriodUsage)
             Toggle(isOn: $draft.showMenuBarIcon) {
                 HelpLabel(title: "显示菜单栏图标", help: "在菜单栏显示宠物、本机 5h 和 7d 额度。宠物隐藏时必须保持开启。")
             }
@@ -552,6 +658,8 @@ struct SettingsView: View {
         settings.fileChangeRefreshMinimumGap = next.fileChangeRefreshMinimumGap
         settings.rateLimitSource = next.rateLimitSource
         settings.showPeriodUsage = next.showPeriodUsage
+        settings.usagePeriodLayout = next.usagePeriodLayout
+        settings.appearanceTheme = next.appearanceTheme
         settings.taskHistoryRange = next.taskHistoryRange
         settings.selectPetSkin(next.selectedPetSkinID)
         if next.launchAtLoginEnabled != settings.launchAtLoginEnabled {

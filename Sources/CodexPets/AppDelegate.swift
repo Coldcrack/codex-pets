@@ -924,13 +924,13 @@ final class PetOverlayController {
 
     private func menuBarIconImage() -> NSImage? {
         if let bundledURL = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
-           let bundledImage = NSImage(contentsOf: bundledURL) {
+           let bundledImage = DownsampledImage.load(url: bundledURL, maxPixelSize: 36) {
             return bundledImage
         }
 
         let developmentURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("Resources/MenuBarIcon.png")
-        return NSImage(contentsOf: developmentURL)
+        return DownsampledImage.load(url: developmentURL, maxPixelSize: 36)
     }
 
     private func menuBarButtonFrame() -> NSRect? {

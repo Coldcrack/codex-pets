@@ -33,6 +33,54 @@ func menuBarIconVisibilityDefaultsToEnabledAndPersists() throws {
 
 @MainActor
 @Test
+func usagePeriodLayoutDefaultsToAllPeriodsAndPersists() throws {
+    let suiteName = "codex-pets-usage-period-layout-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(settings.usagePeriodLayout.visibleItems == [.today, .twentyFourHours, .sevenDays, .thirtyDays])
+    #expect(settings.usagePeriodLayout.hiddenItems.isEmpty)
+
+    settings.usagePeriodLayout = UsagePeriodLayout(
+        visibleItems: [.today, .sevenDays],
+        hiddenItems: [.twentyFourHours, .thirtyDays]
+    )
+
+    let reloaded = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(reloaded.usagePeriodLayout.visibleItems == [.today, .sevenDays])
+    #expect(reloaded.usagePeriodLayout.hiddenItems == [.twentyFourHours, .thirtyDays])
+}
+
+@MainActor
+@Test
+func appearanceThemeDefaultsToLightAndPersists() throws {
+    let suiteName = "codex-pets-appearance-theme-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let settings = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(settings.appearanceTheme == .light)
+    settings.appearanceTheme = .dark
+
+    let reloaded = CodexPetsSettings(
+        defaults: defaults,
+        launchAtLoginManager: TestLaunchAtLoginManager()
+    )
+    #expect(reloaded.appearanceTheme == .dark)
+}
+
+@MainActor
+@Test
 func hidingPetEnablesMenuBarIconAndPersists() throws {
     let suiteName = "codex-pets-hidden-pet-\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
