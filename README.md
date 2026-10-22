@@ -268,6 +268,10 @@ scripts/run-regression-tests.sh       运行完整回归测试
 
 App 显示名和安装名是 `codex-pet`；Swift Package、模块及可执行文件名是 `CodexPets`；仓库目录和 DMG 前缀是 `codex-pets`。本机监测依赖 Codex 的本地数据格式，格式变化后可能需要同步适配。
 
+### 许可证
+
+本项目采用 [MIT License](LICENSE)。打包脚本会将许可证一并放入 App 的资源目录。
+
 <a id="english"></a>
 
 ## English
@@ -389,3 +393,7 @@ Fast snapshot usage values do not indicate historical usage is zero. Snapshot co
 The build script uses ad-hoc signing. Public distribution requires separately configured Developer ID signing and notarization. Local monitoring depends on Codex's local data formats and may require updates when they change.
 
 App / bundle / installation name: `codex-pet`. Swift package, module, and executable: `CodexPets`. Repository directory and DMG prefix: `codex-pets`. Source lives in `Sources/CodexPets`, tests in `Tests`, artwork in `Resources`, documentation images in `docs/images`, and build / install / regression scripts in `scripts`.
+
+### License
+
+This project is licensed under the [MIT License](LICENSE). The build script includes the license in the app's resources directory.

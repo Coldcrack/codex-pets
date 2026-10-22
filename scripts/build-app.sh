@@ -40,6 +40,7 @@ create_app_bundle() {
   cp "$ROOT_DIR/Resources/AppIcon.icns" "$resources_dir/AppIcon.icns"
   cp "$ROOT_DIR/Resources/MenuBarIcon.png" "$resources_dir/MenuBarIcon.png"
   cp "$ROOT_DIR/Resources/CodexPet.png" "$resources_dir/CodexPet.png"
+  cp "$ROOT_DIR/LICENSE" "$resources_dir/LICENSE"
 
   cat > "$contents_dir/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
