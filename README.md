@@ -8,7 +8,7 @@ A native macOS desktop companion for Codex activity, remaining quotas, and local
 
 ![桌宠气泡与任务详情面板，使用示例数据](docs/images/overview.png)
 
-> 界面图使用项目现有 SwiftUI 视图渲染；任务名、额度和用量为示例数据，重置哨兵展示内置历史快照，不代表实时账号状态。为便于阅读，首图将桌宠和详情面板并排展示。
+> 菜单栏图为使用项目现有视图截取的 macOS 实际截图，其余界面图由 SwiftUI 视图渲染。任务名、额度和用量为示例数据，重置哨兵展示内置历史快照，不代表实时账号状态。为便于阅读，首图将桌宠和详情面板并排展示。
 
 <a id="中文"></a>
 
@@ -86,6 +86,12 @@ swift run CodexPets
 - 气泡中的百分比表示**剩余额度**，例如 `82%` 表示对应窗口还有 82% 可用。
 - “正在认真干活…”表示检测到运行中的 Codex 任务；“摸鱼待命中…”表示当前待命。
 - `--` 表示暂时没有对应额度数据，不代表额度耗尽。
+
+macOS 顶部菜单栏也会显示宠物图标与额度。下图中 `5h` 剩余 82%、`7d` 剩余 64%，均为示例数据：
+
+![macOS 顶部菜单栏截图：宠物图标、5h 剩余 82% 和 7d 剩余 64%](docs/images/menu-bar.png)
+
+左键点击菜单栏项目可查看详情；右键点击可显示或隐藏宠物、打开设置，以及退出应用。显示项目及其顺序可在“启动与外观”中调整。
 
 #### 2. 点击查看任务与用量
 
@@ -278,7 +284,7 @@ App 显示名和安装名是 `codex-pet`；Swift Package、模块及可执行文
 
 Codex Pet is a native macOS desktop companion. Its pet shows remaining Codex quotas in a speech bubble; click the pet or menu-bar item to open task and usage details. It runs as an accessory app without a Dock icon.
 
-The images above are rendered from the project's SwiftUI views with sample task names, quotas, and usage. Reset Sentinel shows its bundled historical snapshot. The overview places the pet and detail panel side by side for readability.
+The menu-bar image is a macOS screenshot of the project's view with sample quotas; the other images are rendered from the project's SwiftUI views with sample task names, quotas, and usage. Reset Sentinel shows its bundled historical snapshot. The overview places the pet and detail panel side by side for readability.
 
 ### Features
 
@@ -319,6 +325,12 @@ For DMG installation, use `codex-pets-<version>-arm64.dmg` for Apple Silicon or 
 4. **Customize appearance.** In **启动与外观** (Launch & Appearance), import an image using “添加照片…”, select it, and save. Transparent images work best. Drag usage or menu-bar items to reorder or hide them. At least one usage item must remain visible. Theme and launch-at-login changes also require Save.
 5. **Hide or restore.** Right-click the pet → “隐藏宠物”. The menu-bar entry stays available; right-click it → “显示宠物” to restore. Both context menus provide “退出 codex-pet” to quit.
 6. **Explore Reset Sentinel.** In **重置哨兵**, click “手动扫描” to fetch public announcements. Automatic scanning is off by default. When enabled, it scans immediately and at each hour / half-hour while the view remains active. It is not a background monitoring service. Statistics and historical estimates do not guarantee a future reset or perform account resets.
+
+The macOS menu bar shows the pet icon and remaining quotas. This screenshot uses sample values of 82% for `5h` and 64% for `7d`:
+
+![macOS menu-bar screenshot showing the pet icon, 82% remaining for 5h, and 64% remaining for 7d](docs/images/menu-bar.png)
+
+Left-click to view details; right-click to show or hide the pet, open settings, or quit. Configure the visible items and their order in Launch & Appearance.
 
 See the illustrated Chinese walkthrough above for the [Codex settings](docs/images/settings-codex.png), [appearance settings](docs/images/settings-appearance.png), and [Reset Sentinel](docs/images/reset-sentinel.png).
 
